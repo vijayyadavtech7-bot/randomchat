@@ -114,12 +114,15 @@ function App() {
   useEffect(() => {
     if (socketRef.current) return;
 
-    // ✅ Uses same origin — works on localhost and Render automatically
-    const sock = io(window.location.origin, {
-      transports: ['websocket', 'polling'],
-      reconnection: true, reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000, reconnectionAttempts: 5,
-    });
+    // ✅ localhost:5000 in development, same origin in production
+    const sock = io(
+      process.env.NODE_ENV === 'production' ? window.location.origin : 'http://localhost:5000',
+      {
+        transports: ['websocket', 'polling'],
+        reconnection: true, reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000, reconnectionAttempts: 5,
+      }
+    );
     socketRef.current = sock;
 
     sock.on('connect',      () => console.log('✅ Connected:', sock.id));
