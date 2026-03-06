@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import EmojiPicker from 'emoji-picker-react';
 import './App.css';
+import fahSound from './assets/fahhhhh.mp3';
 
 const getTime = () =>
   new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -13,6 +14,15 @@ const formatDuration = (s) => {
 };
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+
+// Preload sound so it plays instantly with no delay
+const fahAudio = new Audio(fahSound);
+fahAudio.preload = 'auto';
+
+const playFah = () => {
+  fahAudio.currentTime = 0;
+  fahAudio.play().catch(() => {}); // silently ignore if browser blocks autoplay
+};
 
 /* ─────────────────────────────────────────
    Tick icon  ✓ sent/delivered  ✓✓ seen
@@ -240,6 +250,7 @@ function App() {
     });
 
     sock.on('chat-ended', () => {
+      playFah();
       setStatus('ended');
       setPartnerTyping(false);
     });
@@ -328,6 +339,7 @@ function App() {
 
   /* ── Skip to next stranger ── */
   const nextStranger = useCallback(() => {
+    playFah();
     emit('end-chat');
     setPartnerTyping(false);
     if (mediaRef.current?.state === 'recording') mediaRef.current.stop();
@@ -346,6 +358,7 @@ function App() {
 
   /* ── End chat ── */
   const endChat = useCallback(() => {
+    playFah();
     emit('end-chat');
     setStatus('ended');
     setPartnerTyping(false);
