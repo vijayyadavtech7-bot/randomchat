@@ -15,7 +15,6 @@ const formatDuration = (s) => {
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-// 🔊 Set to false (or comment out) to disable the disconnect sound
 const ENABLE_FAH_SOUND = true;
 
 const fahAudio = new Audio(fahSound);
@@ -27,9 +26,6 @@ const playFah = () => {
   fahAudio.play().catch(() => {});
 };
 
-/* ─────────────────────────────────────────
-   Tick icon  ✓ sent/delivered  ✓✓ seen
-───────────────────────────────────────── */
 function TickIcon({ status }) {
   if (status === 'sent' || status === 'delivered') {
     return (
@@ -50,20 +46,8 @@ function TickIcon({ status }) {
     return (
       <span className="msg-tick tick-seen">
         <svg width="19" height="10" viewBox="0 0 19 10" fill="none">
-          <path
-            d="M1 5L4.5 8.5L11 1"
-            stroke="#ffffff"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path
-            d="M7 5L10.5 8.5L17 1"
-            stroke="#ffffff"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M1 5L4.5 8.5L11 1" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M7 5L10.5 8.5L17 1" stroke="#ffffff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
     );
@@ -71,9 +55,6 @@ function TickIcon({ status }) {
   return null;
 }
 
-/* ─────────────────────────────────────────
-   Recording wave animation
-───────────────────────────────────────── */
 function MicWave({ tick }) {
   return (
     <div className="mic-wave">
@@ -85,9 +66,6 @@ function MicWave({ tick }) {
   );
 }
 
-/* ─────────────────────────────────────────
-   Typing indicator
-───────────────────────────────────────── */
 function TypingIndicator() {
   return (
     <div className="typing-indicator">
@@ -101,9 +79,6 @@ function TypingIndicator() {
   );
 }
 
-/* ─────────────────────────────────────────
-   Voice message player
-───────────────────────────────────────── */
 function VoicePlayer({ audioData, duration, own }) {
   const audioRef                      = useRef(null);
   const [playing, setPlaying]         = useState(false);
@@ -158,9 +133,6 @@ function VoicePlayer({ audioData, duration, own }) {
   );
 }
 
-/* ═══════════════════════════════════════════
-   Main App
-═══════════════════════════════════════════ */
 function App() {
   const socketRef      = useRef(null);
   const inputRef       = useRef(null);
@@ -224,7 +196,6 @@ function App() {
           : { type: 'received', text: String(data.message || ''), time: data.timestamp || getTime(), msgId },
       ]);
 
-      // Tell sender their message has been seen
       sock.emit('message-seen', { msgId });
     });
 
@@ -234,7 +205,6 @@ function App() {
       typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 3000);
     });
 
-    // ✓ → ✓ grey: reached partner device
     sock.on('message-delivered', ({ msgId }) => {
       setMessages(prev =>
         prev.map(m =>
@@ -245,7 +215,6 @@ function App() {
       );
     });
 
-    // ✓ grey → ✓✓ white: partner opened and read it
     sock.on('message-seen', ({ msgId }) => {
       setMessages(prev =>
         prev.map(m => m.msgId === msgId ? { ...m, status: 'seen' } : m)
@@ -259,13 +228,12 @@ function App() {
     });
   }, []);
 
-  /* ── visualViewport: lock topbar, track keyboard for composer ──
-     When keyboard opens:
-       - chat-screen height = visualViewport.height (shrinks to fit)
-       - topbar stays at top (sticky, never moves)
-       - messages pane shrinks naturally (flex: 1)
-       - composer stays at bottom (sticky bottom: 0)
-     No jump, no scroll, header always visible. */
+  /* ── visualViewport: keyboard-aware layout ──
+     KEY FIX: Don't set inline styles on initial mount or when keyboard
+     is closed — let CSS (top:0; bottom:0) own the default state.
+     Only override height/top when the soft keyboard is actually open,
+     so the topbar stays fixed and the composer follows the keyboard.
+  ── */
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
@@ -273,16 +241,27 @@ function App() {
     const update = () => {
       const chatEl = document.querySelector('.chat-screen');
       if (!chatEl) return;
-      // Set exact height to visible area — topbar stays, composer follows
-      chatEl.style.height = `${vv.height}px`;
-      chatEl.style.top    = `${vv.offsetTop}px`;
-      // Scroll latest message into view after keyboard settles
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 80);
+
+      // Detect if soft keyboard is open:
+      // visualViewport height will be significantly smaller than the
+      // layout viewport (window.innerHeight) when keyboard is showing.
+      const keyboardOpen = vv.height < window.innerHeight - 100;
+
+      if (keyboardOpen) {
+        // Keyboard is open — override height so composer follows keyboard
+        chatEl.style.height = `${vv.height}px`;
+        chatEl.style.top    = `${vv.offsetTop}px`;
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 80);
+      } else {
+        // Keyboard closed — clear inline styles, let CSS handle layout
+        // CSS: position:fixed; top:0; bottom:0 → always fills the screen
+        chatEl.style.height = '';
+        chatEl.style.top    = '0px';
+      }
     };
 
-    update();
     vv.addEventListener('resize', update);
     vv.addEventListener('scroll', update);
     return () => {
@@ -290,6 +269,7 @@ function App() {
       vv.removeEventListener('scroll', update);
     };
   }, []);
+
   useEffect(() => {
     if (status === 'chatting') setTimeout(() => inputRef.current?.focus(), 100);
   }, [status]);
@@ -327,7 +307,6 @@ function App() {
   const emit      = useCallback((ev, d) => socketRef.current?.emit(ev, d), []);
   const startChat = useCallback(() => emit('start-chat'), [emit]);
 
-  /* ── Send text message ── */
   const sendMessage = useCallback(() => {
     const text = inputValue.trim();
     if (!text || status !== 'chatting') return;
@@ -338,7 +317,6 @@ function App() {
     setInputValue('');
   }, [inputValue, status, emit]);
 
-  /* ── Send voice message ── */
   const sendVoice = useCallback(() => {
     if (!audioPreview || status !== 'chatting') return;
     const time  = getTime();
@@ -370,7 +348,6 @@ function App() {
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  /* ── Skip to next stranger ── */
   const nextStranger = useCallback(() => {
     playFah();
     emit('end-chat');
@@ -389,7 +366,6 @@ function App() {
     }, 150);
   }, [emit]);
 
-  /* ── End chat ── */
   const endChat = useCallback(() => {
     playFah();
     emit('end-chat');
@@ -403,7 +379,6 @@ function App() {
     setShowEmoji(false);
   }, [emit]);
 
-  /* ── Reset to home ── */
   const startNew = useCallback(() => {
     setStatus('initial');
     setMessages([]);
@@ -412,7 +387,6 @@ function App() {
     setShowEmoji(false);
   }, []);
 
-  /* ── Voice recording ── */
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -461,13 +435,9 @@ function App() {
     setRecSeconds(0);
   };
 
-  /* ─────────────────────────────────────────
-     Render
-  ───────────────────────────────────────── */
   return (
     <div className="app">
 
-      {/* ── HOME ── */}
       {status === 'initial' && (
         <div className="screen-center">
           <div className="hero">
@@ -499,7 +469,6 @@ function App() {
         </div>
       )}
 
-      {/* ── MATCHING ── */}
       {status === 'waiting' && (
         <div className="screen-center">
           <div className="waiting-card">
@@ -521,11 +490,9 @@ function App() {
         </div>
       )}
 
-      {/* ── CHAT ── */}
       {status === 'chatting' && (
         <div className="chat-screen">
 
-          {/* Topbar */}
           <div className="topbar">
             <div className="topbar-left">
               <div className="avatar">
@@ -545,7 +512,6 @@ function App() {
             <button className="btn-end" onClick={endChat}>End Chat</button>
           </div>
 
-          {/* Messages */}
           <div className="messages-pane">
             {messages.map((msg, i) => {
               if (msg.type === 'system') {
@@ -571,7 +537,6 @@ function App() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Voice preview bar */}
           {audioPreview && !recording && (
             <div className="audio-preview-bar">
               <span className="ap-label">Voice Message</span>
@@ -589,7 +554,6 @@ function App() {
             </div>
           )}
 
-          {/* Composer */}
           <div className="composer">
             <button className="btn-random" onClick={nextStranger} title="Connect with someone new">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -690,7 +654,6 @@ function App() {
         </div>
       )}
 
-      {/* ── ENDED ── */}
       {status === 'ended' && (
         <div className="screen-center">
           <div className="ended-card">
