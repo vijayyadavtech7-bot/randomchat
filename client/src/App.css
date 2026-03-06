@@ -147,23 +147,26 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ══ CHAT SCREEN ══
    Fixed full-screen container.
-   JS (visualViewport) overrides height+top when keyboard opens —
-   topbar stays locked, messages shrink, composer follows keyboard.
+   Uses top/bottom anchoring instead of height: 100dvh to prevent
+   the browser-chrome resize shimmer on mobile browsers.
+   Topbar is locked; messages + composer fill the rest.
 ══════════════════════════════════════════════════════ */
 .chat-screen {
   position: fixed;
   top: 0;
+  bottom: 0;                          /* anchor to bottom — no dvh jank */
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 780px;
-  height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   background: white;
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
+  /* Prevent any content from peeking behind mobile browser chrome */
+  will-change: unset;
 }
 
 /* ── Topbar ── */
