@@ -1,10 +1,10 @@
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
-const cors = require('cors');
-const path = require('path');
+const express   = require('express');
+const http      = require('http');
+const socketIo  = require('socket.io');
+const cors      = require('cors');
+const path      = require('path');
 
-const app = express();
+const app    = express();
 const server = http.createServer(app);
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -32,12 +32,56 @@ const PORT = process.env.PORT || 5000;
 let waitingUsers = [];
 const activePairs = new Map();
 
+/* ── helpers ── */
+
+// Remove a socket from the waiting queue (deduplicated)
+const removeFromQueue = (socketId) => {
+  waitingUsers = waitingUsers.filter(id => id !== socketId);
+};
+
+// Clean up an active pair, optionally notifying the partner
+const cleanupPair = (socketId, notifyPartner = true) => {
+  const partnerId = activePairs.get(socketId);
+  if (!partnerId) return;
+
+  activePairs.delete(socketId);
+  activePairs.delete(partnerId);
+
+  if (notifyPartner) {
+    io.sockets.sockets.get(partnerId)?.emit('chat-ended');
+  }
+};
+
+// Find next valid (still-connected) partner from the waiting queue
+const dequeueValidPartner = () => {
+  while (waitingUsers.length > 0) {
+    const candidateId = waitingUsers.shift();
+    if (io.sockets.sockets.get(candidateId)) {
+      return candidateId; // still connected
+    }
+    // else: stale socket, skip and try next
+    console.log(`Skipped stale socket in queue: ${candidateId}`);
+  }
+  return null;
+};
+
+/* ── socket events ── */
 io.on('connection', (socket) => {
   console.log('New user connected:', socket.id);
 
   socket.on('start-chat', () => {
-    if (waitingUsers.length > 0) {
-      const partnerId = waitingUsers.shift();
+    // If already paired, cleanly end the existing chat first
+    if (activePairs.has(socket.id)) {
+      console.log(`${socket.id} called start-chat while paired — cleaning up old pair`);
+      cleanupPair(socket.id, true);
+    }
+
+    // Remove from queue if already waiting (prevent duplicates)
+    removeFromQueue(socket.id);
+
+    const partnerId = dequeueValidPartner();
+
+    if (partnerId) {
       const partnerSocket = io.sockets.sockets.get(partnerId);
 
       activePairs.set(socket.id, partnerId);
@@ -50,7 +94,7 @@ io.on('connection', (socket) => {
     } else {
       waitingUsers.push(socket.id);
       socket.emit('waiting');
-      console.log(`Waiting: ${socket.id}`);
+      console.log(`Waiting: ${socket.id} (queue length: ${waitingUsers.length})`);
     }
   });
 
@@ -75,7 +119,7 @@ io.on('connection', (socket) => {
     }
 
     const isVoice = payload.isVoice === true;
-    const msgId   = payload.msgId || null;  // same key App.js uses
+    const msgId   = payload.msgId || null;
 
     if (isVoice) {
       partnerSocket.emit('receive-message', {
@@ -102,13 +146,10 @@ io.on('connection', (socket) => {
       });
     }
 
-    // ✓✓ grey — message reached partner's socket = delivered
+    // ✓ grey — message delivered to partner's socket
     if (msgId) socket.emit('message-delivered', { msgId });
   });
 
-  /* ── Read receipts ──
-     delivered: emitted above immediately after forwarding  → ✓✓ grey
-     seen:      partner emits when they receive the message → ✓✓ blue  */
   socket.on('message-seen', ({ msgId }) => {
     if (!msgId) return;
     const partnerId = activePairs.get(socket.id);
@@ -118,24 +159,15 @@ io.on('connection', (socket) => {
   });
 
   socket.on('end-chat', () => {
-    const partnerId = activePairs.get(socket.id);
-    if (partnerId) {
-      activePairs.delete(socket.id);
-      activePairs.delete(partnerId);
-      io.sockets.sockets.get(partnerId)?.emit('chat-ended');
-    }
-    waitingUsers = waitingUsers.filter(id => id !== socket.id);
+    cleanupPair(socket.id, true);
+    removeFromQueue(socket.id);
+    console.log(`${socket.id} ended chat`);
   });
 
   socket.on('disconnect', () => {
-    const partnerId = activePairs.get(socket.id);
-    if (partnerId) {
-      activePairs.delete(socket.id);
-      activePairs.delete(partnerId);
-      io.sockets.sockets.get(partnerId)?.emit('chat-ended');
-    }
-    waitingUsers = waitingUsers.filter(id => id !== socket.id);
-    console.log('User disconnected:', socket.id);
+    cleanupPair(socket.id, true);
+    removeFromQueue(socket.id);
+    console.log(`Disconnected: ${socket.id} (queue length: ${waitingUsers.length})`);
   });
 });
 
