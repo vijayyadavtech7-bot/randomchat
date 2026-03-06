@@ -15,7 +15,6 @@ const io = socketIo(server, {
     methods: ['GET', 'POST'],
   },
   transports: ['websocket', 'polling'],
-  // Detect dead connections faster
   pingTimeout:  20000,
   pingInterval: 10000,
 });
@@ -32,16 +31,12 @@ if (isProduction) {
 
 const PORT = process.env.PORT || 5000;
 
-// Set instead of array: O(1) add/delete/has, no duplicate risk
-const waitingUsers = new Set();
-const activePairs  = new Map();
-
-// Grace period timers: if socket disconnects briefly, heal silently
+const waitingUsers     = new Set();
+const activePairs      = new Map();
 const disconnectTimers = new Map();
-const DISCONNECT_GRACE_MS = 3000;
+const lastStartChat    = new Map();
 
-// Rate limit: track last start-chat time per socket
-const lastStartChat = new Map();
+const DISCONNECT_GRACE_MS    = 3000;
 const START_CHAT_COOLDOWN_MS = 1000;
 
 /* ── helpers ── */
@@ -65,7 +60,6 @@ const cleanupPair = (socketId, notifyPartner = true) => {
   console.log(`Pair cleaned: ${socketId} ↔ ${partnerId}`);
 };
 
-// Dequeue next valid (still-connected) socket
 const dequeueValidPartner = () => {
   for (const candidateId of waitingUsers) {
     waitingUsers.delete(candidateId);
@@ -81,7 +75,6 @@ const dequeueValidPartner = () => {
 io.on('connection', (socket) => {
   console.log(`Connected: ${socket.id}`);
 
-  // Cancel any pending grace-period disconnect for this socket
   if (disconnectTimers.has(socket.id)) {
     clearTimeout(disconnectTimers.get(socket.id));
     disconnectTimers.delete(socket.id);
@@ -89,8 +82,7 @@ io.on('connection', (socket) => {
   }
 
   socket.on('start-chat', () => {
-    // Rate limit: ignore if called too fast
-    const now = Date.now();
+    const now  = Date.now();
     const last = lastStartChat.get(socket.id) || 0;
     if (now - last < START_CHAT_COOLDOWN_MS) {
       console.log(`Rate limited start-chat: ${socket.id}`);
@@ -98,13 +90,11 @@ io.on('connection', (socket) => {
     }
     lastStartChat.set(socket.id, now);
 
-    // If already paired, end existing chat cleanly first
     if (activePairs.has(socket.id)) {
       console.log(`${socket.id} re-queued while paired — ending old chat`);
       cleanupPair(socket.id, true);
     }
 
-    // Remove from queue if already waiting (prevent double-queue)
     removeFromQueue(socket.id);
 
     const partnerId = dequeueValidPartner();
@@ -126,6 +116,17 @@ io.on('connection', (socket) => {
   socket.on('typing', () => {
     const partner = getPairPartner(socket.id);
     partner?.socket?.emit('partner-typing');
+  });
+
+  // ── Recording indicators ──
+  socket.on('recording-start', () => {
+    const partner = getPairPartner(socket.id);
+    partner?.socket?.emit('partner-recording-start');
+  });
+
+  socket.on('recording-stop', () => {
+    const partner = getPairPartner(socket.id);
+    partner?.socket?.emit('partner-recording-stop');
   });
 
   socket.on('send-message', (data) => {
@@ -175,7 +176,6 @@ io.on('connection', (socket) => {
   });
 
   socket.on('end-chat', () => {
-    // Intentional end — notify partner immediately, no grace period
     cleanupPair(socket.id, true);
     removeFromQueue(socket.id);
     console.log(`End-chat: ${socket.id}`);
@@ -187,8 +187,6 @@ io.on('connection', (socket) => {
     const partnerId = activePairs.get(socket.id);
 
     if (partnerId) {
-      // Unexpected disconnect — give grace period before ending chat.
-      // Notify partner connection is unstable during that time.
       io.sockets.sockets.get(partnerId)?.emit('partner-reconnecting');
 
       const timer = setTimeout(() => {

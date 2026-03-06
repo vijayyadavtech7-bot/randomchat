@@ -145,16 +145,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .waiting-title { font-size: 1.4rem; font-weight: 600; }
 .waiting-sub   { font-size: 0.88rem; color: var(--text-muted); margin-top: -12px; }
 
-/* ══ CHAT SCREEN ══
-   Fixed full-screen container.
-   Uses top/bottom anchoring instead of height: 100dvh to prevent
-   the browser-chrome resize shimmer on mobile browsers.
-   Topbar is locked; messages + composer fill the rest.
-══════════════════════════════════════════════════════ */
+/* ══ CHAT SCREEN ══ */
 .chat-screen {
   position: fixed;
   top: 0;
-  bottom: 0;                          /* anchor to bottom — no dvh jank */
+  bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
@@ -165,7 +160,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   background: white;
   border-left: 1px solid var(--border);
   border-right: 1px solid var(--border);
-  /* Prevent any content from peeking behind mobile browser chrome */
   will-change: unset;
 }
 
@@ -214,7 +208,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 /* ── Messages pane ── */
 .messages-pane {
   flex: 1;
-  min-height: 0;                      /* critical — allows flex child to shrink */
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -271,7 +265,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .bubble.own   .bubble-text { color: #ffffff; }
 .bubble.other .bubble-text { color: var(--text); }
 
-/* ── Bubble footer: time + tick ── */
+/* ── Bubble footer ── */
 .bubble-footer {
   display: flex;
   align-items: center;
@@ -317,6 +311,18 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .typing-dot:nth-child(2) { animation-delay: 0.15s; }
 .typing-dot:nth-child(3) { animation-delay: 0.3s; }
 .typing-label { font-size: 0.72rem; color: var(--text-muted); }
+
+/* ── Recording indicator ── */
+.recording-bubble {
+  gap: 6px;
+  padding: 8px 12px;
+}
+.recording-bubble .mic-wave {
+  height: 18px;
+}
+.recording-bubble .mic-wave-bar {
+  background: linear-gradient(to top, var(--orange), var(--orange-light));
+}
 
 /* ── Voice player ── */
 .voice-player { display: flex; align-items: center; gap: 8px; min-width: 150px; }
@@ -491,10 +497,23 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   .avatar       { width: 36px; height: 36px; }
   .btn-end      { padding: 6px 12px; font-size: 0.78rem; }
   .composer     { gap: 5px; padding: 6px 8px; padding-bottom: calc(6px + var(--safe-bottom)); }
+
   /* Random button icon-only on small screens */
   .btn-random   { width: 42px; height: 42px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
-  /* Emoji picker centered so it doesn't overflow */
-  .emoji-picker-wrap { right: auto; left: 50%; transform: translateX(-50%); bottom: 50px; }
+
+  /* ── Emoji picker: fixed so it never breaks layout ── */
+  .emoji-picker-wrap {
+    position: fixed !important;
+    bottom: 70px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    z-index: 300;
+  }
+  .emoji-picker-wrap .EmojiPickerReact {
+    width: 92vw !important;
+    max-width: 320px !important;
+  }
 }
 
 @media (max-width: 360px) {

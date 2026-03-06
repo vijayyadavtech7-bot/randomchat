@@ -24,7 +24,6 @@ const playFah = () => {
   fahAudio.play().catch(() => {});
 };
 
-// Throttle: returns a function that fires at most once per `ms`
 const throttle = (fn, ms) => {
   let last = 0;
   return (...args) => {
@@ -76,6 +75,24 @@ function TypingIndicator() {
         <span className="typing-dot" />
       </div>
       <span className="typing-label">typing…</span>
+    </div>
+  );
+}
+
+// ── Recording indicator shown to partner ──
+function RecordingIndicator() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick(v => v + 1), 80);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="typing-indicator">
+      <div className="typing-bubble recording-bubble">
+        <span className="rec-dot-live" style={{ width: 7, height: 7 }} />
+        <MicWave tick={tick} />
+      </div>
+      <span className="typing-label">recording…</span>
     </div>
   );
 }
@@ -148,20 +165,21 @@ function App() {
   const waveTimerRef     = useRef(null);
   const typingTimerRef   = useRef(null);
   const waitTimeoutRef   = useRef(null);
-  const endTransitionRef = useRef(null); // timer for graceful end transition
-  const emitTypingRef    = useRef(null); // throttled typing emitter
+  const endTransitionRef = useRef(null);
+  const emitTypingRef    = useRef(null);
 
   const [status,           setStatus]           = useState('initial');
   const [messages,         setMessages]         = useState([]);
   const [inputValue,       setInputValue]       = useState('');
   const [partnerTyping,    setPartnerTyping]     = useState(false);
+  const [partnerRecording, setPartnerRecording]  = useState(false); // ← new
   const [showEmoji,        setShowEmoji]         = useState(false);
   const [recording,        setRecording]         = useState(false);
   const [recSeconds,       setRecSeconds]        = useState(0);
   const [waveTick,         setWaveTick]          = useState(0);
   const [audioPreview,     setAudioPreview]      = useState(null);
   const [socketReady,      setSocketReady]       = useState(false);
-  const [partnerConnected, setPartnerConnected]  = useState(true); // grace period indicator
+  const [partnerConnected, setPartnerConnected]  = useState(true);
 
   /* ── Media/timer cleanup ── */
   const resetMedia = useCallback(() => {
@@ -181,6 +199,7 @@ function App() {
     setInputValue('');
     setShowEmoji(false);
     setPartnerTyping(false);
+    setPartnerRecording(false); // ← clear on reset
     setPartnerConnected(true);
   }, []);
 
@@ -202,7 +221,6 @@ function App() {
     );
     socketRef.current = sock;
 
-    // Throttle typing emit: max once per 2 seconds
     emitTypingRef.current = throttle(() => sock.emit('typing'), 2000);
 
     sock.on('connect', () => {
@@ -237,6 +255,7 @@ function App() {
 
     sock.on('receive-message', (data) => {
       setPartnerTyping(false);
+      setPartnerRecording(false); // ← clear recording when message arrives
       clearTimeout(typingTimerRef.current);
       const msgId = data.msgId || genId();
       setMessages(prev => [...prev,
@@ -248,9 +267,21 @@ function App() {
     });
 
     sock.on('partner-typing', () => {
+      setPartnerRecording(false); // ← clear recording if they switch to typing
       setPartnerTyping(true);
       clearTimeout(typingTimerRef.current);
       typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 3000);
+    });
+
+    // ── Recording indicator events ──
+    sock.on('partner-recording-start', () => {
+      setPartnerTyping(false);   // clear typing if showing
+      clearTimeout(typingTimerRef.current);
+      setPartnerRecording(true);
+    });
+
+    sock.on('partner-recording-stop', () => {
+      setPartnerRecording(false);
     });
 
     sock.on('message-delivered', ({ msgId }) => {
@@ -265,10 +296,10 @@ function App() {
       ));
     });
 
-    // Partner's connection is unstable — show in-chat indicator, don't end yet
     sock.on('partner-reconnecting', () => {
       setPartnerConnected(false);
       setPartnerTyping(false);
+      setPartnerRecording(false);
       setMessages(prev => [...prev, {
         type: 'system',
         text: 'Stranger lost connection, waiting…',
@@ -276,20 +307,18 @@ function App() {
       }]);
     });
 
-    // Chat truly ended — show system message in chat first, then transition after 2s
     sock.on('chat-ended', () => {
       playFah();
       setPartnerConnected(false);
       setPartnerTyping(false);
+      setPartnerRecording(false);
 
-      // Show goodbye message inside the chat before leaving
       setMessages(prev => [...prev, {
         type: 'system',
         text: 'Stranger has disconnected.',
         id: genId(),
       }]);
 
-      // Transition to ended screen after a short pause
       endTransitionRef.current = setTimeout(() => {
         resetMedia();
         setMessages([]);
@@ -302,7 +331,6 @@ function App() {
     if (status === 'chatting') setTimeout(() => inputRef.current?.focus(), 100);
   }, [status]);
 
-  /* ── Any printable key focuses input ── */
   useEffect(() => {
     if (status !== 'chatting') return;
     const handler = (e) => {
@@ -318,7 +346,6 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [status]);
 
-  /* ── Close emoji on outside click ── */
   useEffect(() => {
     const handler = (e) => {
       if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false);
@@ -327,10 +354,9 @@ function App() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  /* ── Scroll to latest message ── */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, partnerTyping]);
+  }, [messages, partnerTyping, partnerRecording]);
 
   /* ── Safe emit ── */
   const emit = useCallback((ev, d) => {
@@ -343,7 +369,7 @@ function App() {
     return true;
   }, []);
 
-  /* ── Start chat with timeout fallback ── */
+  /* ── Start chat ── */
   const startChat = useCallback(() => {
     const ok = emit('start-chat');
     if (!ok) return;
@@ -376,7 +402,6 @@ function App() {
     setRecSeconds(0);
   }, [audioPreview, status, emit]);
 
-  /* ── Typing — throttled to max once per 2s ── */
   const handleTyping = useCallback((e) => {
     setInputValue(e.target.value);
     if (status === 'chatting') emitTypingRef.current?.();
@@ -405,7 +430,7 @@ function App() {
     }, 250);
   }, [emit, resetMedia]);
 
-  /* ── End chat (user-initiated) ── */
+  /* ── End chat ── */
   const endChat = useCallback(() => {
     playFah();
     emit('end-chat');
@@ -414,7 +439,7 @@ function App() {
     setStatus('ended');
   }, [emit, resetMedia]);
 
-  /* ── New conversation from ended screen — skip home ── */
+  /* ── New conversation from ended screen ── */
   const goNewChat = useCallback(() => {
     if (!socketReady) return;
     resetMedia();
@@ -457,6 +482,7 @@ function App() {
       mr.start();
       setRecording(true);
       setRecSeconds(0);
+      emit('recording-start'); // ← notify partner
       recTimerRef.current  = setInterval(() => { secs++; setRecSeconds(secs); }, 1000);
       waveTimerRef.current = setInterval(() => setWaveTick(t => t + 1), 80);
     } catch {
@@ -469,6 +495,7 @@ function App() {
     clearInterval(recTimerRef.current);
     clearInterval(waveTimerRef.current);
     setRecording(false);
+    emit('recording-stop'); // ← notify partner
   };
 
   const cancelRecording = () => {
@@ -482,6 +509,7 @@ function App() {
     setRecording(false);
     setAudioPreview(null);
     setRecSeconds(0);
+    emit('recording-stop'); // ← notify partner
   };
 
   /* ── Render ── */
@@ -593,7 +621,13 @@ function App() {
                 </div>
               );
             })}
-            {partnerTyping && <TypingIndicator />}
+
+            {/* Show only one indicator at a time — recording takes priority */}
+            {partnerRecording
+              ? <RecordingIndicator />
+              : partnerTyping && <TypingIndicator />
+            }
+
             <div ref={messagesEndRef} />
           </div>
 
