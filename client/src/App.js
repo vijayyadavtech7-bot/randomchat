@@ -113,7 +113,9 @@ function App() {
   /* ── Socket ── */
   useEffect(() => {
     if (socketRef.current) return;
-    const sock = io('http://localhost:5000', {
+
+    // ✅ Uses env var in production, localhost in development
+    const sock = io(process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000', {
       reconnection: true, reconnectionDelay: 1000,
       reconnectionDelayMax: 5000, reconnectionAttempts: 5,
     });
@@ -364,7 +366,6 @@ function App() {
           {/* ── Composer ── */}
           <div className="composer">
 
-            {/* 1. Random button — leftmost, before everything */}
             <button className="btn-random" onClick={nextStranger} title="Find new stranger">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="16,3 21,3 21,8" />
@@ -375,7 +376,6 @@ function App() {
               Random
             </button>
 
-            {/* 2. Input box with emoji button INSIDE (WhatsApp style) */}
             <div className="composer-inner">
               {recording ? (
                 <div className="rec-bar">
@@ -400,7 +400,6 @@ function App() {
                     placeholder="Type a message…"
                     autoComplete="off"
                   />
-                  {/* Emoji icon inside input — right side, like WhatsApp */}
                   <div className="emoji-wrap" ref={emojiRef}>
                     <button
                       className={`emoji-toggle ${showEmoji ? 'active' : ''}`}
@@ -431,7 +430,6 @@ function App() {
               )}
             </div>
 
-            {/* 3. FAB — send / mic / stop */}
             {audioPreview && !recording ? (
               <button className="fab fab-send" onClick={sendVoice}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
