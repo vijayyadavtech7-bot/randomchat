@@ -16,10 +16,8 @@ const formatDuration = (s) => {
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 const ENABLE_FAH_SOUND = true;
-
 const fahAudio = new Audio(fahSound);
 fahAudio.preload = 'auto';
-
 const playFah = () => {
   if (!ENABLE_FAH_SOUND) return;
   fahAudio.currentTime = 0;
@@ -31,13 +29,7 @@ function TickIcon({ status }) {
     return (
       <span className="msg-tick tick-grey">
         <svg width="14" height="10" viewBox="0 0 14 10" fill="none">
-          <path
-            d="M1 5L4.5 8.5L13 1"
-            stroke="rgba(255,255,255,0.5)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
+          <path d="M1 5L4.5 8.5L13 1" stroke="rgba(255,255,255,0.5)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
     );
@@ -143,6 +135,7 @@ function App() {
   const recTimerRef    = useRef(null);
   const waveTimerRef   = useRef(null);
   const typingTimerRef = useRef(null);
+  const vvDebounceRef  = useRef(null);   // ← debounce timer for visualViewport
 
   const [status,        setStatus]        = useState('initial');
   const [messages,      setMessages]      = useState([]);
@@ -173,100 +166,79 @@ function App() {
     socketRef.current = sock;
 
     sock.on('connect', () => console.log('✅ Socket connected:', sock.id));
-
-    sock.on('waiting', () => {
-      setStatus('waiting');
-      setMessages([]);
-    });
-
+    sock.on('waiting', () => { setStatus('waiting'); setMessages([]); });
     sock.on('chat-started', () => {
       setStatus('chatting');
       setMessages([{ type: 'system', text: "You're now connected — say hello! 👋" }]);
     });
-
     sock.on('receive-message', (data) => {
       setPartnerTyping(false);
       clearTimeout(typingTimerRef.current);
-
       const msgId = data.msgId || genId();
-
       setMessages(prev => [...prev,
         data.isVoice
           ? { type: 'received', isVoice: true, audioData: data.audioData, duration: data.duration, time: data.timestamp || getTime(), msgId }
           : { type: 'received', text: String(data.message || ''), time: data.timestamp || getTime(), msgId },
       ]);
-
       sock.emit('message-seen', { msgId });
     });
-
     sock.on('partner-typing', () => {
       setPartnerTyping(true);
       clearTimeout(typingTimerRef.current);
       typingTimerRef.current = setTimeout(() => setPartnerTyping(false), 3000);
     });
-
     sock.on('message-delivered', ({ msgId }) => {
-      setMessages(prev =>
-        prev.map(m =>
-          m.msgId === msgId && m.status === 'sent'
-            ? { ...m, status: 'delivered' }
-            : m
-        )
-      );
+      setMessages(prev => prev.map(m =>
+        m.msgId === msgId && m.status === 'sent' ? { ...m, status: 'delivered' } : m
+      ));
     });
-
     sock.on('message-seen', ({ msgId }) => {
-      setMessages(prev =>
-        prev.map(m => m.msgId === msgId ? { ...m, status: 'seen' } : m)
-      );
+      setMessages(prev => prev.map(m =>
+        m.msgId === msgId ? { ...m, status: 'seen' } : m
+      ));
     });
-
-    sock.on('chat-ended', () => {
-      playFah();
-      setStatus('ended');
-      setPartnerTyping(false);
-    });
+    sock.on('chat-ended', () => { playFah(); setStatus('ended'); setPartnerTyping(false); });
   }, []);
 
-  /* ── visualViewport: keyboard-aware layout ──
-     KEY FIX: Don't set inline styles on initial mount or when keyboard
-     is closed — let CSS (top:0; bottom:0) own the default state.
-     Only override height/top when the soft keyboard is actually open,
-     so the topbar stays fixed and the composer follows the keyboard.
-  ── */
+  /* ── visualViewport: debounced keyboard handler ──────────────────
+     The shake was caused by visualViewport firing 10-20 resize events
+     as the keyboard animates up, each one updating inline height and
+     causing a reflow. We debounce by 160ms so we only apply the final
+     settled height once the keyboard animation is complete.
+     CSS (top:0; bottom:0) owns the default state — no inline styles
+     on mount, only when keyboard is actually open.
+  ──────────────────────────────────────────────────────────────── */
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
 
-    const update = () => {
+    const applyLayout = () => {
       const chatEl = document.querySelector('.chat-screen');
       if (!chatEl) return;
 
-      // Detect if soft keyboard is open:
-      // visualViewport height will be significantly smaller than the
-      // layout viewport (window.innerHeight) when keyboard is showing.
-      const keyboardOpen = vv.height < window.innerHeight - 100;
+      const keyboardOpen = vv.height < window.innerHeight - 80;
 
       if (keyboardOpen) {
-        // Keyboard is open — override height so composer follows keyboard
         chatEl.style.height = `${vv.height}px`;
         chatEl.style.top    = `${vv.offsetTop}px`;
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 80);
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       } else {
-        // Keyboard closed — clear inline styles, let CSS handle layout
-        // CSS: position:fixed; top:0; bottom:0 → always fills the screen
+        // Keyboard closed — let CSS own it completely
         chatEl.style.height = '';
         chatEl.style.top    = '0px';
       }
     };
 
-    vv.addEventListener('resize', update);
-    vv.addEventListener('scroll', update);
+    const onResize = () => {
+      // Debounce: wait for keyboard animation to finish before applying
+      clearTimeout(vvDebounceRef.current);
+      vvDebounceRef.current = setTimeout(applyLayout, 160);
+    };
+
+    vv.addEventListener('resize', onResize);
     return () => {
-      vv.removeEventListener('resize', update);
-      vv.removeEventListener('scroll', update);
+      vv.removeEventListener('resize', onResize);
+      clearTimeout(vvDebounceRef.current);
     };
   }, []);
 
@@ -274,7 +246,6 @@ function App() {
     if (status === 'chatting') setTimeout(() => inputRef.current?.focus(), 100);
   }, [status]);
 
-  /* ── Any printable key focuses input ── */
   useEffect(() => {
     if (status !== 'chatting') return;
     const handler = (e) => {
@@ -290,7 +261,6 @@ function App() {
     return () => window.removeEventListener('keydown', handler);
   }, [status]);
 
-  /* ── Close emoji picker on outside click ── */
   useEffect(() => {
     const handler = (e) => {
       if (emojiRef.current && !emojiRef.current.contains(e.target)) setShowEmoji(false);
@@ -299,7 +269,6 @@ function App() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  /* ── Scroll to latest message ── */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, partnerTyping]);
@@ -321,17 +290,10 @@ function App() {
     if (!audioPreview || status !== 'chatting') return;
     const time  = getTime();
     const msgId = genId();
-    emit('send-message', {
-      audioData: audioPreview.base64,
-      isVoice: true,
-      duration: audioPreview.duration,
-      msgId,
-    });
+    emit('send-message', { audioData: audioPreview.base64, isVoice: true, duration: audioPreview.duration, msgId });
     setMessages(prev => [...prev, {
-      type: 'sent', isVoice: true,
-      audioData: audioPreview.url,
-      duration: audioPreview.duration,
-      time, msgId, status: 'sent',
+      type: 'sent', isVoice: true, audioData: audioPreview.url,
+      duration: audioPreview.duration, time, msgId, status: 'sent',
     }]);
     setAudioPreview(null);
     setRecSeconds(0);
@@ -359,11 +321,7 @@ function App() {
     setAudioPreview(null);
     setInputValue('');
     setShowEmoji(false);
-    setTimeout(() => {
-      setMessages([]);
-      setStatus('waiting');
-      emit('start-chat');
-    }, 150);
+    setTimeout(() => { setMessages([]); setStatus('waiting'); emit('start-chat'); }, 150);
   }, [emit]);
 
   const endChat = useCallback(() => {
@@ -394,7 +352,6 @@ function App() {
       mediaRef.current  = mr;
       chunksRef.current = [];
       let secs = 0;
-
       mr.ondataavailable = (e) => chunksRef.current.push(e.data);
       mr.onstop = () => {
         const blob   = new Blob(chunksRef.current, { type: 'audio/webm' });
@@ -404,7 +361,6 @@ function App() {
         reader.readAsDataURL(blob);
         stream.getTracks().forEach(t => t.stop());
       };
-
       mr.start();
       setRecording(true);
       setRecSeconds(0);
@@ -460,9 +416,7 @@ function App() {
                 Real conversations with real people — completely anonymous.<br />
                 Text &amp; voice, no account required.
               </p>
-              <button className="btn-start" onClick={startChat}>
-                Start Chatting
-              </button>
+              <button className="btn-start" onClick={startChat}>Start Chatting</button>
               <p className="hero-note">100% anonymous &middot; No sign-up &middot; End anytime</p>
             </div>
           </div>
@@ -480,10 +434,7 @@ function App() {
             </div>
             <h2 className="waiting-title">Finding someone…</h2>
             <p className="waiting-sub">Looking for someone available to connect with</p>
-            <button
-              className="btn-ghost"
-              onClick={() => { emit('end-chat'); setStatus('initial'); }}
-            >
+            <button className="btn-ghost" onClick={() => { emit('end-chat'); setStatus('initial'); }}>
               Cancel
             </button>
           </div>
@@ -514,9 +465,7 @@ function App() {
 
           <div className="messages-pane">
             {messages.map((msg, i) => {
-              if (msg.type === 'system') {
-                return <div key={i} className="sys-msg">{msg.text}</div>;
-              }
+              if (msg.type === 'system') return <div key={i} className="sys-msg">{msg.text}</div>;
               const own = msg.type === 'sent';
               return (
                 <div key={msg.msgId || i} className={`msg-row ${own ? 'own' : 'other'}`}>
@@ -541,14 +490,9 @@ function App() {
             <div className="audio-preview-bar">
               <span className="ap-label">Voice Message</span>
               <VoicePlayer audioData={audioPreview.url} duration={audioPreview.duration} own={true} />
-              <button
-                className="ap-discard"
-                onClick={() => setAudioPreview(null)}
-                aria-label="Discard recording"
-              >
+              <button className="ap-discard" onClick={() => setAudioPreview(null)} aria-label="Discard recording">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
               </button>
             </div>
@@ -557,10 +501,8 @@ function App() {
           <div className="composer">
             <button className="btn-random" onClick={nextStranger} title="Connect with someone new">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="16,3 21,3 21,8" />
-                <line x1="4" y1="20" x2="21" y2="3" />
-                <polyline points="21,16 21,21 16,21" />
-                <line x1="15" y1="15" x2="21" y2="21" />
+                <polyline points="16,3 21,3 21,8" /><line x1="4" y1="20" x2="21" y2="3" />
+                <polyline points="21,16 21,21 16,21" /><line x1="15" y1="15" x2="21" y2="21" />
               </svg>
               Next
             </button>
@@ -570,8 +512,7 @@ function App() {
                 <div className="rec-bar">
                   <button className="rec-discard" onClick={cancelRecording} aria-label="Cancel recording">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                      <line x1="6" y1="6" x2="18" y2="18" />
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                     </svg>
                   </button>
                   <span className="rec-dot-live" />
@@ -625,8 +566,7 @@ function App() {
             {audioPreview && !recording ? (
               <button className="fab fab-send" onClick={sendVoice} aria-label="Send voice message">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22,2 15,22 11,13 2,9" />
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22,2 15,22 11,13 2,9" />
                 </svg>
               </button>
             ) : recording ? (
@@ -636,8 +576,7 @@ function App() {
             ) : inputValue.trim() ? (
               <button className="fab fab-send" onClick={sendMessage} aria-label="Send message">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="22" y1="2" x2="11" y2="13" />
-                  <polygon points="22,2 15,22 11,13 2,9" />
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22,2 15,22 11,13 2,9" />
                 </svg>
               </button>
             ) : (
@@ -660,13 +599,9 @@ function App() {
             <div className="ended-emoji">👋</div>
             <h2 className="ended-title">Conversation Ended</h2>
             <p className="ended-sub">
-              The other person has disconnected.<br />
-              Ready to meet someone new?
+              The other person has disconnected.<br />Ready to meet someone new?
             </p>
-            <button
-              className="btn-start"
-              onClick={() => { startNew(); setTimeout(startChat, 50); }}
-            >
+            <button className="btn-start" onClick={() => { startNew(); setTimeout(startChat, 50); }}>
               New Conversation
             </button>
             <button className="btn-ghost" onClick={startNew}>Back to Home</button>
