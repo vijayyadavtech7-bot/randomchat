@@ -259,7 +259,37 @@ function App() {
     });
   }, []);
 
-  /* ── Auto-focus input when chat starts ── */
+  /* ── visualViewport: lock topbar, track keyboard for composer ──
+     When keyboard opens:
+       - chat-screen height = visualViewport.height (shrinks to fit)
+       - topbar stays at top (sticky, never moves)
+       - messages pane shrinks naturally (flex: 1)
+       - composer stays at bottom (sticky bottom: 0)
+     No jump, no scroll, header always visible. */
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const update = () => {
+      const chatEl = document.querySelector('.chat-screen');
+      if (!chatEl) return;
+      // Set exact height to visible area — topbar stays, composer follows
+      chatEl.style.height = `${vv.height}px`;
+      chatEl.style.top    = `${vv.offsetTop}px`;
+      // Scroll latest message into view after keyboard settles
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 80);
+    };
+
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, []);
   useEffect(() => {
     if (status === 'chatting') setTimeout(() => inputRef.current?.focus(), 100);
   }, [status]);
