@@ -24,6 +24,15 @@ const playFah = () => {
   fahAudio.play().catch(() => {});
 };
 
+// Throttle: returns a function that fires at most once per `ms`
+const throttle = (fn, ms) => {
+  let last = 0;
+  return (...args) => {
+    const now = Date.now();
+    if (now - last >= ms) { last = now; fn(...args); }
+  };
+};
+
 function TickIcon({ status }) {
   if (status === 'sent' || status === 'delivered') {
     return (
@@ -129,30 +138,32 @@ function VoicePlayer({ audioData, duration, own }) {
    Main App
 ═══════════════════════════════════════════ */
 function App() {
-  const socketRef      = useRef(null);
-  const inputRef       = useRef(null);
-  const emojiRef       = useRef(null);
-  const messagesEndRef = useRef(null);
-  const mediaRef       = useRef(null);
-  const chunksRef      = useRef([]);
-  const recTimerRef    = useRef(null);
-  const waveTimerRef   = useRef(null);
-  const typingTimerRef = useRef(null);
-  const vvDebounceRef  = useRef(null);
-  const waitTimeoutRef = useRef(null);
+  const socketRef        = useRef(null);
+  const inputRef         = useRef(null);
+  const emojiRef         = useRef(null);
+  const messagesEndRef   = useRef(null);
+  const mediaRef         = useRef(null);
+  const chunksRef        = useRef([]);
+  const recTimerRef      = useRef(null);
+  const waveTimerRef     = useRef(null);
+  const typingTimerRef   = useRef(null);
+  const waitTimeoutRef   = useRef(null);
+  const endTransitionRef = useRef(null); // timer for graceful end transition
+  const emitTypingRef    = useRef(null); // throttled typing emitter
 
-  const [status,        setStatus]        = useState('initial');
-  const [messages,      setMessages]      = useState([]);
-  const [inputValue,    setInputValue]    = useState('');
-  const [partnerTyping, setPartnerTyping] = useState(false);
-  const [showEmoji,     setShowEmoji]     = useState(false);
-  const [recording,     setRecording]     = useState(false);
-  const [recSeconds,    setRecSeconds]    = useState(0);
-  const [waveTick,      setWaveTick]      = useState(0);
-  const [audioPreview,  setAudioPreview]  = useState(null);
-  const [socketReady,   setSocketReady]   = useState(false);
+  const [status,           setStatus]           = useState('initial');
+  const [messages,         setMessages]         = useState([]);
+  const [inputValue,       setInputValue]       = useState('');
+  const [partnerTyping,    setPartnerTyping]     = useState(false);
+  const [showEmoji,        setShowEmoji]         = useState(false);
+  const [recording,        setRecording]         = useState(false);
+  const [recSeconds,       setRecSeconds]        = useState(0);
+  const [waveTick,         setWaveTick]          = useState(0);
+  const [audioPreview,     setAudioPreview]      = useState(null);
+  const [socketReady,      setSocketReady]       = useState(false);
+  const [partnerConnected, setPartnerConnected]  = useState(true); // grace period indicator
 
-  /* ── Full media/state cleanup ── */
+  /* ── Media/timer cleanup ── */
   const resetMedia = useCallback(() => {
     if (mediaRef.current?.state === 'recording') {
       mediaRef.current.ondataavailable = null;
@@ -163,12 +174,14 @@ function App() {
     clearInterval(waveTimerRef.current);
     clearTimeout(waitTimeoutRef.current);
     clearTimeout(typingTimerRef.current);
+    clearTimeout(endTransitionRef.current);
     setRecording(false);
     setAudioPreview(null);
     setRecSeconds(0);
     setInputValue('');
     setShowEmoji(false);
     setPartnerTyping(false);
+    setPartnerConnected(true);
   }, []);
 
   /* ── Socket setup ── */
@@ -189,10 +202,12 @@ function App() {
     );
     socketRef.current = sock;
 
+    // Throttle typing emit: max once per 2 seconds
+    emitTypingRef.current = throttle(() => sock.emit('typing'), 2000);
+
     sock.on('connect', () => {
-      console.log('✅ Socket connected:', sock.id);
+      console.log('✅ Connected:', sock.id);
       setSocketReady(true);
-      // If socket dropped mid-flow, reset cleanly to home
       setStatus(prev => {
         if (prev === 'waiting' || prev === 'chatting') {
           resetMedia();
@@ -203,7 +218,7 @@ function App() {
     });
 
     sock.on('disconnect', () => {
-      console.warn('⚠️ Socket disconnected');
+      console.warn('⚠️ Disconnected');
       setSocketReady(false);
     });
 
@@ -215,8 +230,9 @@ function App() {
 
     sock.on('chat-started', () => {
       clearTimeout(waitTimeoutRef.current);
+      setPartnerConnected(true);
       setStatus('chatting');
-      setMessages([{ type: 'system', text: "You're now connected — say hello! 👋" }]);
+      setMessages([{ type: 'system', text: "You're now connected — say hello! 👋", id: genId() }]);
     });
 
     sock.on('receive-message', (data) => {
@@ -249,47 +265,38 @@ function App() {
       ));
     });
 
+    // Partner's connection is unstable — show in-chat indicator, don't end yet
+    sock.on('partner-reconnecting', () => {
+      setPartnerConnected(false);
+      setPartnerTyping(false);
+      setMessages(prev => [...prev, {
+        type: 'system',
+        text: 'Stranger lost connection, waiting…',
+        id: genId(),
+      }]);
+    });
+
+    // Chat truly ended — show system message in chat first, then transition after 2s
     sock.on('chat-ended', () => {
       playFah();
-      resetMedia();
-      setMessages([]);
-      setStatus('ended');
+      setPartnerConnected(false);
+      setPartnerTyping(false);
+
+      // Show goodbye message inside the chat before leaving
+      setMessages(prev => [...prev, {
+        type: 'system',
+        text: 'Stranger has disconnected.',
+        id: genId(),
+      }]);
+
+      // Transition to ended screen after a short pause
+      endTransitionRef.current = setTimeout(() => {
+        resetMedia();
+        setMessages([]);
+        setStatus('ended');
+      }, 400);
     });
   }, [resetMedia]);
-
-  /* ── visualViewport: debounced keyboard handler ──
-     Only apply inline height AFTER keyboard finishes animating (160ms debounce).
-     CSS (top:0; bottom:0) owns default state — no inline styles on mount.
-  ── */
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-
-    const applyLayout = () => {
-      const chatEl = document.querySelector('.chat-screen');
-      if (!chatEl) return;
-      const keyboardOpen = vv.height < window.innerHeight - 80;
-      if (keyboardOpen) {
-        chatEl.style.height = `${vv.height}px`;
-        chatEl.style.top    = `${vv.offsetTop}px`;
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        chatEl.style.height = '';
-        chatEl.style.top    = '0px';
-      }
-    };
-
-    const onResize = () => {
-      clearTimeout(vvDebounceRef.current);
-      vvDebounceRef.current = setTimeout(applyLayout, 160);
-    };
-
-    vv.addEventListener('resize', onResize);
-    return () => {
-      vv.removeEventListener('resize', onResize);
-      clearTimeout(vvDebounceRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (status === 'chatting') setTimeout(() => inputRef.current?.focus(), 100);
@@ -325,11 +332,11 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, partnerTyping]);
 
-  /* ── Safe emit — checks socket is actually connected ── */
+  /* ── Safe emit ── */
   const emit = useCallback((ev, d) => {
     const sock = socketRef.current;
     if (!sock?.connected) {
-      console.warn(`emit('${ev}') skipped — socket not connected`);
+      console.warn(`emit('${ev}') skipped — not connected`);
       return false;
     }
     sock.emit(ev, d);
@@ -343,7 +350,7 @@ function App() {
     clearTimeout(waitTimeoutRef.current);
     waitTimeoutRef.current = setTimeout(() => {
       setStatus(prev => prev === 'waiting' ? 'initial' : prev);
-    }, 6000);
+    }, 8000);
   }, [emit]);
 
   const sendMessage = useCallback(() => {
@@ -369,10 +376,11 @@ function App() {
     setRecSeconds(0);
   }, [audioPreview, status, emit]);
 
+  /* ── Typing — throttled to max once per 2s ── */
   const handleTyping = useCallback((e) => {
     setInputValue(e.target.value);
-    if (status === 'chatting') emit('typing');
-  }, [status, emit]);
+    if (status === 'chatting') emitTypingRef.current?.();
+  }, [status]);
 
   const onEmojiClick = useCallback((emojiData) => {
     setInputValue(prev => prev + emojiData.emoji);
@@ -380,7 +388,7 @@ function App() {
     setTimeout(() => inputRef.current?.focus(), 0);
   }, []);
 
-  /* ── Next stranger — clean reset, then find new ── */
+  /* ── Next stranger ── */
   const nextStranger = useCallback(() => {
     playFah();
     emit('end-chat');
@@ -390,13 +398,14 @@ function App() {
     setTimeout(() => {
       const ok = emit('start-chat');
       if (!ok) { setStatus('initial'); return; }
+      clearTimeout(waitTimeoutRef.current);
       waitTimeoutRef.current = setTimeout(() => {
         setStatus(prev => prev === 'waiting' ? 'initial' : prev);
-      }, 6000);
-    }, 200);
+      }, 8000);
+    }, 250);
   }, [emit, resetMedia]);
 
-  /* ── End chat ── */
+  /* ── End chat (user-initiated) ── */
   const endChat = useCallback(() => {
     playFah();
     emit('end-chat');
@@ -405,18 +414,7 @@ function App() {
     setStatus('ended');
   }, [emit, resetMedia]);
 
-  /* ── Back to home ── */
-  const startNew = useCallback(() => {
-    resetMedia();
-    setMessages([]);
-    setStatus('initial');
-  }, [resetMedia]);
-
-  /* ── New conversation directly from ended screen ──
-     Skip 'initial' entirely — go straight to waiting.
-     Small delay lets server process any lingering end-chat
-     before we emit start-chat.
-  ── */
+  /* ── New conversation from ended screen — skip home ── */
   const goNewChat = useCallback(() => {
     if (!socketReady) return;
     resetMedia();
@@ -428,9 +426,16 @@ function App() {
       clearTimeout(waitTimeoutRef.current);
       waitTimeoutRef.current = setTimeout(() => {
         setStatus(prev => prev === 'waiting' ? 'initial' : prev);
-      }, 6000);
-    }, 200);
+      }, 8000);
+    }, 250);
   }, [emit, resetMedia, socketReady]);
+
+  /* ── Back to home ── */
+  const startNew = useCallback(() => {
+    resetMedia();
+    setMessages([]);
+    setStatus('initial');
+  }, [resetMedia]);
 
   /* ── Voice recording ── */
   const startRecording = async () => {
@@ -557,8 +562,10 @@ function App() {
               <div className="stranger-info">
                 <div className="stranger-name">Anonymous</div>
                 <div className="stranger-status">
-                  <span className="live-dot" />
-                  Connected
+                  {partnerConnected
+                    ? <><span className="live-dot" /> Connected</>
+                    : <><span className="live-dot" style={{ background: '#f97316', boxShadow: '0 0 6px #f97316' }} /> Reconnecting…</>
+                  }
                 </div>
               </div>
             </div>
@@ -567,7 +574,9 @@ function App() {
 
           <div className="messages-pane">
             {messages.map((msg, i) => {
-              if (msg.type === 'system') return <div key={i} className="sys-msg">{msg.text}</div>;
+              if (msg.type === 'system') return (
+                <div key={msg.id || i} className="sys-msg">{msg.text}</div>
+              );
               const own = msg.type === 'sent';
               return (
                 <div key={msg.msgId || i} className={`msg-row ${own ? 'own' : 'other'}`}>
@@ -702,7 +711,7 @@ function App() {
             <div className="ended-emoji">👋</div>
             <h2 className="ended-title">Conversation Ended</h2>
             <p className="ended-sub">
-              The other person has disconnected.<br />Ready to meet someone new?
+              Ready to meet someone new?
             </p>
             <button
               className="btn-start"
