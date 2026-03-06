@@ -15,13 +15,16 @@ const formatDuration = (s) => {
 
 const genId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-// Preload sound so it plays instantly with no delay
+// 🔊 Set to false (or comment out) to disable the disconnect sound
+const ENABLE_FAH_SOUND = true;
+
 const fahAudio = new Audio(fahSound);
 fahAudio.preload = 'auto';
 
 const playFah = () => {
+  if (!ENABLE_FAH_SOUND) return;
   fahAudio.currentTime = 0;
-  fahAudio.play().catch(() => {}); // silently ignore if browser blocks autoplay
+  fahAudio.play().catch(() => {});
 };
 
 /* ─────────────────────────────────────────
