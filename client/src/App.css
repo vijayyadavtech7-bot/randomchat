@@ -86,15 +86,155 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .hero-sub  { font-size: 1rem; color: var(--text-muted); line-height: 1.65; max-width: 320px; }
 .hero-note { font-size: 0.78rem; color: var(--text-muted); }
 
-.btn-start {
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 14px 36px;
-  background: linear-gradient(135deg, var(--blue), var(--blue-light));
-  color: white; font-size: 0.95rem; font-weight: 600; border-radius: 100px;
-  transition: all 0.2s; box-shadow: 0 6px 20px rgba(29,78,216,0.35); margin-top: 8px;
+/* ══ ISOMETRIC 3D START BUTTON ══ */
+.btn-start-wrap {
+  position: relative;
+  display: inline-block;
+  margin-top: 8px;
+  perspective: 600px;
 }
-.btn-start:hover { transform: translateY(-2px); box-shadow: 0 10px 28px rgba(29,78,216,0.4); }
-.btn-start:active { transform: translateY(0); }
+
+.btn-start {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 36px;
+  height: 52px;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-light) 100%);
+  color: white;
+  font-size: 0.98rem;
+  font-weight: 700;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transform: translateY(0) rotateX(0deg);
+  transition: transform 0.15s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.15s ease;
+
+  /* Isometric shadow layers */
+  box-shadow:
+    0 6px 0 0 #1239a0,
+    0 8px 0 0 #0e2d80,
+    0 10px 0 0 rgba(18,57,160,0.4),
+    0 14px 28px rgba(29,78,216,0.45);
+}
+
+/* Slide-in shimmer effect */
+.btn-start::before {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255,255,255,0.35) 50%,
+    transparent 80%
+  );
+  transition: left 0.45s ease;
+  pointer-events: none;
+}
+
+/* Top highlight */
+.btn-start::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
+  border-radius: 14px 14px 0 0;
+  pointer-events: none;
+}
+
+/* Icon inside button */
+.btn-start-icon {
+  display: flex;
+  align-items: center;
+  transition: transform 0.2s ease;
+}
+
+/* Label that slides */
+.btn-start-label {
+  position: relative;
+  overflow: hidden;
+  height: 1.2em;
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-start-label span {
+  display: block;
+  line-height: 1.2em;
+  transition: transform 0.3s cubic-bezier(0.34,1.4,0.64,1);
+}
+
+.btn-start-label span:last-child {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  white-space: nowrap;
+}
+
+/* HOVER state */
+.btn-start:hover {
+  transform: translateY(-4px) rotateX(8deg);
+  box-shadow:
+    0 10px 0 0 #1239a0,
+    0 13px 0 0 #0e2d80,
+    0 16px 0 0 rgba(18,57,160,0.35),
+    0 22px 36px rgba(29,78,216,0.5);
+}
+
+.btn-start:hover::before {
+  left: 140%;
+}
+
+.btn-start:hover .btn-start-label span:first-child {
+  transform: translateY(-100%);
+}
+.btn-start:hover .btn-start-label span:last-child {
+  transform: translateY(-100%);
+}
+
+.btn-start:hover .btn-start-icon {
+  transform: translateX(3px) rotate(-10deg);
+}
+
+/* ACTIVE / PRESS state — pushes down like physical button */
+.btn-start:active {
+  transform: translateY(6px) rotateX(2deg);
+  box-shadow:
+    0 2px 0 0 #1239a0,
+    0 3px 0 0 #0e2d80,
+    0 4px 12px rgba(29,78,216,0.3);
+  transition: transform 0.07s ease, box-shadow 0.07s ease;
+}
+
+/* Pulse ring on load */
+.btn-start-wrap::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 20px;
+  border: 2px solid rgba(29,78,216,0.25);
+  animation: btnRingPulse 2.5s ease-out infinite;
+  pointer-events: none;
+}
+
+.btn-start-wrap::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+  border-radius: 26px;
+  border: 1.5px solid rgba(29,78,216,0.12);
+  animation: btnRingPulse 2.5s ease-out 0.6s infinite;
+  pointer-events: none;
+}
 
 /* ══ WAITING ══ */
 .waiting-card { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 20px; }
@@ -262,7 +402,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   flex-shrink: 0;
 }
 
-/* 1. Random button — solid pill, leftmost */
 .btn-random {
   display: flex;
   align-items: center;
@@ -284,7 +423,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .btn-random:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(249,115,22,0.5); }
 .btn-random:active { transform: scale(0.97); }
 
-/* 2. Input box — flex row, emoji sits inside right edge */
 .composer-inner {
   flex: 1;
   background: var(--surface2);
@@ -293,9 +431,9 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   height: 44px;
   display: flex;
   align-items: center;
-  padding: 0 6px 0 16px;    /* right padding reduced — emoji btn fills it */
+  padding: 0 6px 0 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
-  overflow: visible;         /* allow emoji popup to overflow */
+  overflow: visible;
   position: relative;
 }
 .composer-inner:focus-within {
@@ -312,7 +450,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .composer-input::placeholder { color: var(--text-muted); }
 
-/* Emoji wrap — inside input on right */
 .emoji-wrap { position: relative; flex-shrink: 0; }
 
 .emoji-toggle {
@@ -325,7 +462,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .emoji-toggle:hover  { background: var(--blue-soft); color: var(--blue); transform: scale(1.1); }
 .emoji-toggle.active { background: var(--blue-soft); color: var(--blue); }
 
-/* Picker pops up above the input */
 .emoji-picker-wrap {
   position: absolute;
   bottom: 46px;
@@ -337,7 +473,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   animation: fadeIn 0.15s ease;
 }
 
-/* Theme overrides for emoji-picker-react */
 .emoji-picker-wrap .EmojiPickerReact {
   --epr-bg-color: #ffffff;
   --epr-category-label-bg-color: #f4f6fb;
@@ -349,7 +484,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border-radius: 16px !important;
 }
 
-/* Recording bar (inside composer-inner when recording) */
 .rec-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
 .rec-discard {
   background: rgba(239,68,68,0.08); border: none; color: var(--red);
@@ -373,7 +507,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   min-width: 36px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums;
 }
 
-/* 3. FAB buttons */
 .fab {
   width: 44px; height: 44px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
@@ -413,6 +546,12 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 @keyframes typingBounce{ 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
 @keyframes popIn       { from { transform: scale(0.88); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes fadeIn      { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+@keyframes btnRingPulse {
+  0%   { opacity: 0.6; transform: scale(1); }
+  70%  { opacity: 0;   transform: scale(1.12); }
+  100% { opacity: 0;   transform: scale(1.12); }
+}
 
 @media (max-width: 600px) {
   .chat-screen { border: none; }
