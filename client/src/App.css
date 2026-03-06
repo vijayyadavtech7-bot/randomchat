@@ -86,12 +86,11 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .hero-sub  { font-size: 1rem; color: var(--text-muted); line-height: 1.65; max-width: 320px; }
 .hero-note { font-size: 0.78rem; color: var(--text-muted); }
 
-/* ══ ISOMETRIC 3D START BUTTON ══ */
+/* ══ APPLE-STYLE BUTTON ══ */
 .btn-start-wrap {
   position: relative;
   display: inline-block;
   margin-top: 8px;
-  perspective: 600px;
 }
 
 .btn-start {
@@ -100,77 +99,78 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 0 36px;
-  height: 52px;
-  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-light) 100%);
+  padding: 0 44px;
+  height: 54px;
+  min-width: 220px;
+  background: #1D4ED8;
   color: white;
-  font-size: 0.98rem;
-  font-weight: 700;
-  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 980px; /* Apple uses fully rounded pill */
   border: none;
   cursor: pointer;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   overflow: hidden;
-  transform-style: preserve-3d;
-  transform: translateY(0) rotateX(0deg);
-  transition: transform 0.15s cubic-bezier(0.34,1.2,0.64,1), box-shadow 0.15s ease;
-
-  /* Isometric shadow layers */
+  transition:
+    background 0.3s ease,
+    transform 0.18s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    box-shadow 0.3s ease;
   box-shadow:
-    0 6px 0 0 #1239a0,
-    0 8px 0 0 #0e2d80,
-    0 10px 0 0 rgba(18,57,160,0.4),
-    0 14px 28px rgba(29,78,216,0.45);
+    0 2px 8px rgba(29,78,216,0.35),
+    0 1px 2px rgba(0,0,0,0.15);
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Slide-in shimmer effect */
+/* Continuous shimmer sweep — subtle, Apple-like */
 .btn-start::before {
   content: '';
   position: absolute;
-  top: 0; left: -100%;
-  width: 60%;
+  top: 0;
+  left: -100%;
+  width: 55%;
   height: 100%;
   background: linear-gradient(
-    105deg,
+    100deg,
     transparent 20%,
-    rgba(255,255,255,0.35) 50%,
+    rgba(255,255,255,0.18) 50%,
     transparent 80%
   );
-  transition: left 0.45s ease;
+  animation: appleShimmer 2.4s ease-in-out infinite;
   pointer-events: none;
 }
 
-/* Top highlight */
+/* Subtle inner top highlight like Apple glass */
 .btn-start::after {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 40%;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.18), transparent);
-  border-radius: 14px 14px 0 0;
+  height: 50%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.12), transparent);
+  border-radius: 980px 980px 0 0;
   pointer-events: none;
 }
 
-/* Icon inside button */
+/* Arrow icon */
 .btn-start-icon {
   display: flex;
   align-items: center;
-  transition: transform 0.2s ease;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  flex-shrink: 0;
 }
 
-/* Label that slides */
+/* Slide text */
 .btn-start-label {
   position: relative;
   overflow: hidden;
-  height: 1.2em;
+  height: 1.25em;
   display: flex;
   flex-direction: column;
 }
 
 .btn-start-label span {
   display: block;
-  line-height: 1.2em;
-  transition: transform 0.3s cubic-bezier(0.34,1.4,0.64,1);
+  line-height: 1.25em;
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
 .btn-start-label span:last-child {
@@ -180,60 +180,27 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   white-space: nowrap;
 }
 
-/* HOVER state */
+/* HOVER — Apple style: subtle scale + deeper color */
 .btn-start:hover {
-  transform: translateY(-4px) rotateX(8deg);
+  background: #1a42c0;
+  transform: scale(1.02);
   box-shadow:
-    0 10px 0 0 #1239a0,
-    0 13px 0 0 #0e2d80,
-    0 16px 0 0 rgba(18,57,160,0.35),
-    0 22px 36px rgba(29,78,216,0.5);
+    0 6px 20px rgba(29,78,216,0.5),
+    0 2px 6px rgba(0,0,0,0.18);
 }
 
-.btn-start:hover::before {
-  left: 140%;
-}
+.btn-start:hover .btn-start-label span:first-child { transform: translateY(-110%); }
+.btn-start:hover .btn-start-label span:last-child  { transform: translateY(-110%); }
+.btn-start:hover .btn-start-icon                   { transform: translateX(5px); }
 
-.btn-start:hover .btn-start-label span:first-child {
-  transform: translateY(-100%);
-}
-.btn-start:hover .btn-start-label span:last-child {
-  transform: translateY(-100%);
-}
-
-.btn-start:hover .btn-start-icon {
-  transform: translateX(3px) rotate(-10deg);
-}
-
-/* ACTIVE / PRESS state — pushes down like physical button */
+/* PRESS — Apple style: scale down, instant */
 .btn-start:active {
-  transform: translateY(6px) rotateX(2deg);
+  background: #163aa8;
+  transform: scale(0.97);
   box-shadow:
-    0 2px 0 0 #1239a0,
-    0 3px 0 0 #0e2d80,
-    0 4px 12px rgba(29,78,216,0.3);
-  transition: transform 0.07s ease, box-shadow 0.07s ease;
-}
-
-/* Pulse ring on load */
-.btn-start-wrap::before {
-  content: '';
-  position: absolute;
-  inset: -6px;
-  border-radius: 20px;
-  border: 2px solid rgba(29,78,216,0.25);
-  animation: btnRingPulse 2.5s ease-out infinite;
-  pointer-events: none;
-}
-
-.btn-start-wrap::after {
-  content: '';
-  position: absolute;
-  inset: -12px;
-  border-radius: 26px;
-  border: 1.5px solid rgba(29,78,216,0.12);
-  animation: btnRingPulse 2.5s ease-out 0.6s infinite;
-  pointer-events: none;
+    0 1px 4px rgba(29,78,216,0.3),
+    0 1px 2px rgba(0,0,0,0.1);
+  transition: transform 0.08s ease, background 0.08s ease, box-shadow 0.08s ease;
 }
 
 /* ══ WAITING ══ */
@@ -268,7 +235,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   border-left: 1px solid var(--border); border-right: 1px solid var(--border);
 }
 
-/* Topbar */
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 20px; background: var(--blue); flex-shrink: 0;
@@ -297,7 +263,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .btn-end:hover { background: rgba(239,68,68,0.75); border-color: transparent; }
 
-/* Messages */
 .messages-pane {
   flex: 1; overflow-y: auto; padding: 20px 16px 10px;
   display: flex; flex-direction: column; gap: 4px;
@@ -333,7 +298,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .bubble.own   .bubble-time { color: rgba(255,255,255,0.6); }
 .bubble.other .bubble-time { color: var(--text-muted); }
 
-/* Typing */
 .typing-indicator { display: flex; align-items: center; gap: 8px; padding: 4px 0; animation: fadeIn 0.2s ease; }
 .typing-bubble {
   background: white; border: 1px solid var(--border);
@@ -349,7 +313,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .typing-dot:nth-child(3) { animation-delay: 0.3s; }
 .typing-label { font-size: 0.72rem; color: var(--text-muted); }
 
-/* Voice player */
 .voice-player { display: flex; align-items: center; gap: 10px; min-width: 200px; }
 .voice-play-btn {
   width: 32px; height: 32px; border-radius: 50%;
@@ -371,7 +334,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .voice-player.own   .voice-dur { color: rgba(255,255,255,0.7); }
 .voice-player.other .voice-dur { color: var(--text-muted); }
 
-/* Audio preview bar */
 .audio-preview-bar {
   padding: 10px 16px; background: var(--orange-soft);
   border-top: 1px solid rgba(249,115,22,0.15);
@@ -385,7 +347,6 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 .ap-discard:hover { background: rgba(239,68,68,0.2); }
 
-/* Voice preview → orange */
 .audio-preview-bar .voice-player .voice-play-btn { background: var(--orange) !important; color: white !important; }
 .audio-preview-bar .voice-player .vbar           { background: #fdba74 !important; }
 .audio-preview-bar .voice-player .vbar.filled    { background: var(--orange) !important; }
@@ -393,48 +354,29 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 
 /* ══ COMPOSER ══ */
 .composer {
-  padding: 10px 12px;
-  background: white;
+  padding: 10px 12px; background: white;
   border-top: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px; flex-shrink: 0;
 }
 
 .btn-random {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0 14px;
-  height: 44px;
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 14px; height: 44px;
   background: linear-gradient(135deg, var(--orange), var(--orange-light));
-  color: white;
-  font-size: 0.8rem;
-  font-weight: 700;
-  border-radius: 100px;
-  border: none;
-  white-space: nowrap;
-  flex-shrink: 0;
+  color: white; font-size: 0.8rem; font-weight: 700; border-radius: 100px;
+  white-space: nowrap; flex-shrink: 0;
   box-shadow: 0 3px 12px rgba(249,115,22,0.4);
-  transition: all 0.2s;
-  letter-spacing: 0.02em;
+  transition: all 0.2s; letter-spacing: 0.02em;
 }
 .btn-random:hover  { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(249,115,22,0.5); }
 .btn-random:active { transform: scale(0.97); }
 
 .composer-inner {
-  flex: 1;
-  background: var(--surface2);
-  border: 1.5px solid var(--border);
-  border-radius: 100px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  padding: 0 6px 0 16px;
+  flex: 1; background: var(--surface2);
+  border: 1.5px solid var(--border); border-radius: 100px; height: 44px;
+  display: flex; align-items: center; padding: 0 6px 0 16px;
   transition: border-color 0.2s, box-shadow 0.2s;
-  overflow: visible;
-  position: relative;
+  overflow: visible; position: relative;
 }
 .composer-inner:focus-within {
   border-color: var(--blue-light);
@@ -443,45 +385,30 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 }
 
 .composer-input {
-  flex: 1;
-  background: none; border: none; outline: none;
-  color: var(--text); font-size: 0.92rem; font-family: inherit;
-  min-width: 0;
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-size: 0.92rem; font-family: inherit; min-width: 0;
 }
 .composer-input::placeholder { color: var(--text-muted); }
 
 .emoji-wrap { position: relative; flex-shrink: 0; }
-
 .emoji-toggle {
-  width: 34px; height: 34px;
-  background: none; border: none;
+  width: 34px; height: 34px; background: none; border: none;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; color: var(--text-muted);
-  cursor: pointer; transition: all 0.15s;
+  border-radius: 50%; color: var(--text-muted); cursor: pointer; transition: all 0.15s;
 }
 .emoji-toggle:hover  { background: var(--blue-soft); color: var(--blue); transform: scale(1.1); }
 .emoji-toggle.active { background: var(--blue-soft); color: var(--blue); }
 
 .emoji-picker-wrap {
-  position: absolute;
-  bottom: 46px;
-  right: -8px;
-  z-index: 200;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 8px 32px rgba(29,78,216,0.18);
-  animation: fadeIn 0.15s ease;
+  position: absolute; bottom: 46px; right: -8px; z-index: 200;
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 8px 32px rgba(29,78,216,0.18); animation: fadeIn 0.15s ease;
 }
-
 .emoji-picker-wrap .EmojiPickerReact {
-  --epr-bg-color: #ffffff;
-  --epr-category-label-bg-color: #f4f6fb;
-  --epr-hover-bg-color: #EFF6FF;
-  --epr-focus-bg-color: #EFF6FF;
-  --epr-highlight-color: #1D4ED8;
-  --epr-search-border-color: #1D4ED8;
-  border: 1px solid rgba(29,78,216,0.12) !important;
-  border-radius: 16px !important;
+  --epr-bg-color: #ffffff; --epr-category-label-bg-color: #f4f6fb;
+  --epr-hover-bg-color: #EFF6FF; --epr-focus-bg-color: #EFF6FF;
+  --epr-highlight-color: #1D4ED8; --epr-search-border-color: #1D4ED8;
+  border: 1px solid rgba(29,78,216,0.12) !important; border-radius: 16px !important;
 }
 
 .rec-bar { display: flex; align-items: center; gap: 10px; width: 100%; }
@@ -493,8 +420,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .rec-discard:hover { background: rgba(239,68,68,0.18); }
 .rec-dot-live {
   width: 8px; height: 8px; border-radius: 50%; background: var(--orange);
-  flex-shrink: 0; box-shadow: 0 0 8px var(--orange);
-  animation: livePulse 1s ease-in-out infinite;
+  flex-shrink: 0; box-shadow: 0 0 8px var(--orange); animation: livePulse 1s ease-in-out infinite;
 }
 .mic-wave { flex: 1; display: flex; align-items: center; gap: 2.5px; height: 28px; }
 .mic-wave-bar {
@@ -512,9 +438,7 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; transition: all 0.2s;
 }
-.fab-mic {
-  background: var(--surface2); border: 1.5px solid var(--border); color: var(--text-muted);
-}
+.fab-mic { background: var(--surface2); border: 1.5px solid var(--border); color: var(--text-muted); }
 .fab-mic:hover { border-color: var(--orange-light); color: var(--orange); background: var(--orange-soft); }
 .fab-send {
   background: linear-gradient(135deg, var(--blue), var(--blue-light));
@@ -538,19 +462,19 @@ button { font-family: inherit; cursor: pointer; border: none; outline: none; }
 .ended-title { font-size: 1.6rem; font-weight: 700; }
 .ended-sub   { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 6px; }
 
-/* ══ ANIMATIONS ══ */
-@keyframes orbPulse    { 0%,100% { transform: translateX(-50%) scale(1); } 50% { transform: translateX(-50%) scale(1.12); } }
-@keyframes radarPing   { 0% { transform: scale(0.6); opacity: 0.6; } 100% { transform: scale(1.2); opacity: 0; } }
-@keyframes corePulse   { 0%,100% { box-shadow: 0 0 8px rgba(29,78,216,0.5); } 50% { box-shadow: 0 0 20px rgba(249,115,22,0.6); } }
-@keyframes livePulse   { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-@keyframes typingBounce{ 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
-@keyframes popIn       { from { transform: scale(0.88); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@keyframes fadeIn      { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+/* ══ ALL ANIMATIONS ══ */
+@keyframes orbPulse     { 0%,100% { transform: translateX(-50%) scale(1); }    50% { transform: translateX(-50%) scale(1.12); } }
+@keyframes radarPing    { 0% { transform: scale(0.6); opacity: 0.6; }           100% { transform: scale(1.2); opacity: 0; } }
+@keyframes corePulse    { 0%,100% { box-shadow: 0 0 8px rgba(29,78,216,0.5); }  50% { box-shadow: 0 0 20px rgba(249,115,22,0.6); } }
+@keyframes livePulse    { 0%,100% { opacity: 1; }  50% { opacity: 0.3; } }
+@keyframes typingBounce { 0%,60%,100% { transform: translateY(0); }             30% { transform: translateY(-5px); } }
+@keyframes popIn        { from { transform: scale(0.88); opacity: 0; }          to  { transform: scale(1); opacity: 1; } }
+@keyframes fadeIn       { from { opacity: 0; transform: translateY(4px); }      to  { opacity: 1; transform: translateY(0); } }
 
-@keyframes btnRingPulse {
-  0%   { opacity: 0.6; transform: scale(1); }
-  70%  { opacity: 0;   transform: scale(1.12); }
-  100% { opacity: 0;   transform: scale(1.12); }
+/* Button shimmer — continuous, subtle */
+@keyframes appleShimmer {
+  0%   { left: -100%; }
+  100% { left: 160%; }
 }
 
 @media (max-width: 600px) {
