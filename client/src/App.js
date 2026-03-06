@@ -114,8 +114,9 @@ function App() {
   useEffect(() => {
     if (socketRef.current) return;
 
-    // ✅ Uses env var in production, localhost in development
-    const sock = io(process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000', {
+    // ✅ Uses same origin — works on localhost and Render automatically
+    const sock = io(window.location.origin, {
+      transports: ['websocket', 'polling'],
       reconnection: true, reconnectionDelay: 1000,
       reconnectionDelayMax: 5000, reconnectionAttempts: 5,
     });

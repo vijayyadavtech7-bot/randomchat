@@ -11,9 +11,10 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const io = socketIo(server, {
   cors: {
-    origin: isProduction ? false : 'http://localhost:3000',
+    origin: isProduction ? process.env.CLIENT_URL || '*' : 'http://localhost:3000',
     methods: ['GET', 'POST'],
   },
+  transports: ['websocket', 'polling'],
 });
 
 app.use(cors());
