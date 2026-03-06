@@ -412,6 +412,26 @@ function App() {
     setStatus('initial');
   }, [resetMedia]);
 
+  /* ── New conversation directly from ended screen ──
+     Skip 'initial' entirely — go straight to waiting.
+     Small delay lets server process any lingering end-chat
+     before we emit start-chat.
+  ── */
+  const goNewChat = useCallback(() => {
+    if (!socketReady) return;
+    resetMedia();
+    setMessages([]);
+    setStatus('waiting');
+    setTimeout(() => {
+      const ok = emit('start-chat');
+      if (!ok) { setStatus('initial'); return; }
+      clearTimeout(waitTimeoutRef.current);
+      waitTimeoutRef.current = setTimeout(() => {
+        setStatus(prev => prev === 'waiting' ? 'initial' : prev);
+      }, 6000);
+    }, 200);
+  }, [emit, resetMedia, socketReady]);
+
   /* ── Voice recording ── */
   const startRecording = async () => {
     try {
@@ -686,7 +706,7 @@ function App() {
             </p>
             <button
               className="btn-start"
-              onClick={() => { startNew(); setTimeout(startChat, 100); }}
+              onClick={goNewChat}
               disabled={!socketReady}
               style={{ opacity: socketReady ? 1 : 0.6, cursor: socketReady ? 'pointer' : 'not-allowed' }}
             >
