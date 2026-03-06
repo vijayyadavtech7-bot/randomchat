@@ -20,7 +20,6 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// ── Serve React build in production ──
 if (isProduction) {
   app.use(express.static(path.join(__dirname, '../client/build')));
   app.get('*', (req, res) => {
@@ -47,25 +46,20 @@ io.on('connection', (socket) => {
       socket.emit('chat-started', { partnerId });
       partnerSocket.emit('chat-started', { partnerId: socket.id });
 
-      console.log(`Paired: ${socket.id} with ${partnerId}`);
+      console.log(`Paired: ${socket.id} ↔ ${partnerId}`);
     } else {
       waitingUsers.push(socket.id);
       socket.emit('waiting');
-      console.log(`User ${socket.id} is waiting`);
+      console.log(`Waiting: ${socket.id}`);
     }
   });
 
   socket.on('typing', () => {
     const partnerId = activePairs.get(socket.id);
-    if (partnerId) {
-      const partnerSocket = io.sockets.sockets.get(partnerId);
-      if (partnerSocket) partnerSocket.emit('partner-typing');
-    }
+    if (partnerId) io.sockets.sockets.get(partnerId)?.emit('partner-typing');
   });
 
   socket.on('send-message', (data) => {
-    console.log('send-message raw data:', data);
-
     const partnerId = activePairs.get(socket.id);
     if (!partnerId) return;
 
@@ -74,12 +68,14 @@ io.on('connection', (socket) => {
 
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+    // Unwrap nested objects (safety)
     let payload = data;
     while (payload && typeof payload.message === 'object' && payload.message !== null) {
       payload = payload.message;
     }
 
     const isVoice = payload.isVoice === true;
+    const msgId   = payload.msgId || null;  // same key App.js uses
 
     if (isVoice) {
       partnerSocket.emit('receive-message', {
@@ -87,6 +83,7 @@ io.on('connection', (socket) => {
         isVoice: true,
         duration: payload.duration,
         senderId: socket.id,
+        msgId,
         timestamp,
       });
     } else {
@@ -100,8 +97,23 @@ io.on('connection', (socket) => {
         message: messageText,
         isVoice: false,
         senderId: socket.id,
+        msgId,
         timestamp,
       });
+    }
+
+    // ✓✓ grey — message reached partner's socket = delivered
+    if (msgId) socket.emit('message-delivered', { msgId });
+  });
+
+  /* ── Read receipts ──
+     delivered: emitted above immediately after forwarding  → ✓✓ grey
+     seen:      partner emits when they receive the message → ✓✓ blue  */
+  socket.on('message-seen', ({ msgId }) => {
+    if (!msgId) return;
+    const partnerId = activePairs.get(socket.id);
+    if (partnerId) {
+      io.sockets.sockets.get(partnerId)?.emit('message-seen', { msgId });
     }
   });
 
@@ -110,8 +122,7 @@ io.on('connection', (socket) => {
     if (partnerId) {
       activePairs.delete(socket.id);
       activePairs.delete(partnerId);
-      const partnerSocket = io.sockets.sockets.get(partnerId);
-      if (partnerSocket) partnerSocket.emit('chat-ended');
+      io.sockets.sockets.get(partnerId)?.emit('chat-ended');
     }
     waitingUsers = waitingUsers.filter(id => id !== socket.id);
   });
@@ -121,8 +132,7 @@ io.on('connection', (socket) => {
     if (partnerId) {
       activePairs.delete(socket.id);
       activePairs.delete(partnerId);
-      const partnerSocket = io.sockets.sockets.get(partnerId);
-      if (partnerSocket) partnerSocket.emit('chat-ended');
+      io.sockets.sockets.get(partnerId)?.emit('chat-ended');
     }
     waitingUsers = waitingUsers.filter(id => id !== socket.id);
     console.log('User disconnected:', socket.id);
